@@ -13,6 +13,49 @@ namespace Datadog.Trace.ClrProfiler
 
         private static readonly ILog Log = LogProvider.GetLogger(typeof(ScopeFactory));
 
+        public static Scope CreateOutboundRequestScope(
+            Tracer tracer,
+            string scheme,
+            string integrationName,
+            Uri requestUri,
+            string resourceName,
+            Action<Span> mutateSpan)
+        {
+            if (!tracer.Settings.IsIntegrationEnabled(integrationName))
+            {
+                // integration disabled, don't create a scope, skip this trace
+                return null;
+            }
+
+            Scope scope = null;
+
+            try
+            {
+                scope = tracer.StartActive($"{scheme}.request");
+                var span = scope.Span;
+
+                span.Type = scheme; // SpanTypes.Http
+                span.ServiceName = $"{tracer.DefaultServiceName}-{scheme}-client";
+                span.ResourceName = resourceName;
+                span.SetTag(Tags.SpanKind, SpanKinds.Client);
+                span.SetTag(Tags.InstrumentationName, integrationName);
+
+                // set analytics sample rate if enabled
+                var analyticsSampleRate = tracer.Settings.GetIntegrationAnalyticsSampleRate(integrationName, enabledWithGlobalSetting: false);
+                span.SetMetric(Tags.Analytics, analyticsSampleRate);
+
+                mutateSpan(span);
+            }
+            catch (Exception ex)
+            {
+                Log.ErrorException("Error creating or populating scope.", ex);
+            }
+
+            // always returns the scope, even if it's null because we couldn't create it,
+            // or we couldn't populate it completely (some tags is better than no tags)
+            return scope;
+        }
+
         /// <summary>
         /// Creates a scope for outbound http requests and populates some common details.
         /// </summary>
