@@ -8,10 +8,10 @@ namespace Datadog.Trace.OpenTracing
 {
     internal class OpenTracingSpan : ISpan
     {
-        internal OpenTracingSpan(Span span)
+        internal OpenTracingSpan(Span span, IEnumerable<KeyValuePair<string, string>> baggage = null)
         {
             Span = span;
-            Context = new OpenTracingSpanContext(span.Context);
+            Context = new OpenTracingSpanContext(span.Context, baggage);
         }
 
         public OpenTracingSpanContext Context { get; }
@@ -28,7 +28,7 @@ namespace Datadog.Trace.OpenTracing
 
         internal TimeSpan Duration => Span.Duration;
 
-        public string GetBaggageItem(string key) => null;
+        public string GetBaggageItem(string key) => Context?.GetBaggageItem(key);
 
         public ISpan Log(DateTimeOffset timestamp, IEnumerable<KeyValuePair<string, object>> fields) => this;
 
@@ -38,7 +38,11 @@ namespace Datadog.Trace.OpenTracing
 
         public ISpan Log(IEnumerable<KeyValuePair<string, object>> fields) => this;
 
-        public ISpan SetBaggageItem(string key, string value) => this;
+        public ISpan SetBaggageItem(string key, string value)
+        {
+            Context?.SetBaggageItem(key, value);
+            return this;
+        }
 
         public ISpan SetOperationName(string operationName)
         {

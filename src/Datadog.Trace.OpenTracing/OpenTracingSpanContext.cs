@@ -1,6 +1,6 @@
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using Datadog.Trace.Logging;
 
 namespace Datadog.Trace.OpenTracing
@@ -9,9 +9,10 @@ namespace Datadog.Trace.OpenTracing
     {
         private static ILog _log = LogProvider.For<OpenTracingSpanContext>();
 
-        public OpenTracingSpanContext(ISpanContext context)
+        public OpenTracingSpanContext(ISpanContext context, IEnumerable<KeyValuePair<string, string>> baggage = null)
         {
             Context = context;
+            Baggage = baggage != null ? new ConcurrentDictionary<string, string>(baggage) : new ConcurrentDictionary<string, string>();
         }
 
         public string TraceId => Context.TraceId.ToString(CultureInfo.InvariantCulture);
@@ -20,9 +21,21 @@ namespace Datadog.Trace.OpenTracing
 
         internal ISpanContext Context { get; }
 
+        private ConcurrentDictionary<string, string> Baggage { get; }
+
         public IEnumerable<KeyValuePair<string, string>> GetBaggageItems()
         {
-            return Enumerable.Empty<KeyValuePair<string, string>>();
+            return Baggage.ToArray();
+        }
+
+        public string GetBaggageItem(string key)
+        {
+            return Baggage.TryGetValue(key, out var value) ? value : null;
+        }
+
+        public void SetBaggageItem(string key, string value)
+        {
+            Baggage.AddOrUpdate(key, value, (k, cmp) => value);
         }
     }
 }
