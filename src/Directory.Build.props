@@ -8,7 +8,6 @@
     <!-- NuGet packages -->
     <Version>1.2.0</Version>
     <IsPackable>true</IsPackable>
-    <PackageIcon>https://github.com/DataDog/dd-trace-dotnet/raw/master/datadog-logo-64x64.png</PackageIcon>
     <PackageProjectUrl>https://docs.datadoghq.com/tracing/setup/dotnet/</PackageProjectUrl>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
