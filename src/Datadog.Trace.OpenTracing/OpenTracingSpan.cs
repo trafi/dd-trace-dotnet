@@ -9,11 +9,8 @@ namespace Datadog.Trace.OpenTracing
 {
     internal class OpenTracingSpan : ISpan
     {
-        private static readonly ILog _log = LogProvider.For<OpenTracingSpan>();
-
         internal OpenTracingSpan(Span span, IEnumerable<KeyValuePair<string, string>> baggage = null)
         {
-            _log.Debug($"Creating OTSpan: {span.OperationName} {span.ResourceName} {span.ServiceName}");
             Span = span;
             Context = new OpenTracingSpanContext(span.Context, baggage);
         }

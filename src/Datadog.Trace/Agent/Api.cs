@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -72,8 +73,9 @@ namespace Datadog.Trace.Agent
                 {
                     if (retryCount >= retryLimit)
                     {
+                        var toLog = traces.Take(count: 10).Select(t => t?.Take(count: 10).ToArray()).ToArray();
                         // stop retrying
-                        _log.ErrorException("An error occurred while sending traces to the agent at {Endpoint}", ex, _tracesEndpoint);
+                        _log.ErrorException("An error occurred while sending traces to the agent at {Endpoint}, {TraceSample}", ex, _tracesEndpoint, JsonConvert.SerializeObject(toLog));
                         return;
                     }
 
