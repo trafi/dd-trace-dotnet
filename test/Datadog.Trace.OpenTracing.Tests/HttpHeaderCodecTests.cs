@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Xunit;
 
 namespace Datadog.Trace.OpenTracing.Tests
@@ -9,6 +10,7 @@ namespace Datadog.Trace.OpenTracing.Tests
         private const string HttpHeaderTraceId = "x-datadog-trace-id";
         private const string HttpHeaderParentId = "x-datadog-parent-id";
         private const string HttpHeaderSamplingPriority = "x-datadog-sampling-priority";
+        private const string HttpHeaderBaggagePrefix = "x-datadog-baggage-";
 
         private readonly HttpHeadersCodec _codec = new HttpHeadersCodec();
 
@@ -30,22 +32,62 @@ namespace Datadog.Trace.OpenTracing.Tests
         }
 
         [Fact]
+        public void Extract_ValidBaggageItems_ProperSpanContext()
+        {
+            var baggage = new KeyValuePair<string, string>[]
+            {
+                new KeyValuePair<string, string>("Potato", "Cannon"),
+                new KeyValuePair<string, string>("Foo", "Bar")
+            };
+
+            var headers = new MockTextMap();
+            foreach (var kv in baggage)
+            {
+                headers.Set($"{HttpHeaderBaggagePrefix}{kv.Key}", kv.Value);
+            }
+
+            var spanContext = _codec.Extract(headers) as OpenTracingSpanContext;
+
+            Assert.NotNull(spanContext);
+            foreach (var kv in baggage)
+            {
+                Assert.Equal(kv.Value, spanContext.GetBaggageItem(kv.Key));
+            }
+        }
+
+        [Fact]
         public void Extract_WrongHeaderCase_ExtractionStillWorks()
         {
             const ulong traceId = 10;
             const ulong parentId = 120;
             const SamplingPriority samplingPriority = SamplingPriority.UserKeep;
 
+            var baggage = new KeyValuePair<string, string>[]
+            {
+                new KeyValuePair<string, string>("Potato", "Cannon"),
+                new KeyValuePair<string, string>("Foo", "Bar")
+            };
+
             var headers = new MockTextMap();
             headers.Set(HttpHeaderTraceId.ToUpper(), traceId.ToString());
             headers.Set(HttpHeaderParentId.ToUpper(), parentId.ToString());
             headers.Set(HttpHeaderSamplingPriority.ToUpper(), ((int)samplingPriority).ToString());
+
+            foreach (var kv in baggage)
+            {
+                headers.Set($"{HttpHeaderBaggagePrefix.ToUpper()}{kv.Key}", kv.Value);
+            }
 
             var spanContext = _codec.Extract(headers) as OpenTracingSpanContext;
 
             Assert.NotNull(spanContext);
             Assert.Equal(traceId, spanContext.Context.TraceId);
             Assert.Equal(parentId, spanContext.Context.SpanId);
+
+            foreach (var kv in baggage)
+            {
+                Assert.Equal(kv.Value, spanContext.GetBaggageItem(kv.Key));
+            }
         }
 
         [Fact]
@@ -55,8 +97,14 @@ namespace Datadog.Trace.OpenTracing.Tests
             const ulong traceId = 7;
             const SamplingPriority samplingPriority = SamplingPriority.UserKeep;
 
+            var baggage = new KeyValuePair<string, string>[]
+            {
+                new KeyValuePair<string, string>("Potato", "Cannon"),
+                new KeyValuePair<string, string>("Foo", "Bar")
+            };
+
             var ddSpanContext = new SpanContext(traceId, spanId, samplingPriority);
-            var spanContext = new OpenTracingSpanContext(ddSpanContext);
+            var spanContext = new OpenTracingSpanContext(ddSpanContext, baggage);
             var headers = new MockTextMap();
 
             _codec.Inject(spanContext, headers);
@@ -64,6 +112,11 @@ namespace Datadog.Trace.OpenTracing.Tests
             Assert.Equal(spanId.ToString(), headers.Get(HttpHeaderParentId));
             Assert.Equal(traceId.ToString(), headers.Get(HttpHeaderTraceId));
             Assert.Equal(((int)samplingPriority).ToString(), headers.Get(HttpHeaderSamplingPriority));
+
+            foreach (var kv in baggage)
+            {
+                Assert.Equal(kv.Value, headers.Get($"{HttpHeaderBaggagePrefix}{kv.Key}"));
+            }
         }
     }
 }

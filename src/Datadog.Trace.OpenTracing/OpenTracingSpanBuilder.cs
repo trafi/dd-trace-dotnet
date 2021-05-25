@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using Datadog.Trace.Logging;
 using OpenTracing;
 using OpenTracing.Tag;
@@ -71,7 +72,9 @@ namespace Datadog.Trace.OpenTracing
             {
                 ISpanContext parentContext = GetParentContext();
                 Span ddSpan = _tracer.DatadogTracer.StartSpan(_operationName, parentContext, _serviceName, _start, _ignoreActiveSpan);
-                var otSpan = new OpenTracingSpan(ddSpan);
+
+                IEnumerable<KeyValuePair<string, string>> parentBaggage = GetParentBaggage();
+                var otSpan = new OpenTracingSpan(ddSpan, parentBaggage);
 
                 if (_tags != null)
                 {
@@ -172,6 +175,20 @@ namespace Datadog.Trace.OpenTracing
             }
 
             return parentContext;
+        }
+
+        private IEnumerable<KeyValuePair<string, string>> GetParentBaggage()
+        {
+            var openTracingSpanContext = _parent as OpenTracingSpanContext;
+            var parentContext = openTracingSpanContext;
+
+            if (parentContext == null && !_ignoreActiveSpan)
+            {
+                // if parent was not set explicitly, default to active span as parent (unless disabled)
+                return _tracer.ActiveSpan?.Context?.GetBaggageItems();
+            }
+
+            return parentContext?.GetBaggageItems();
         }
     }
 }

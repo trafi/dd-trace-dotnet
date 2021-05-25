@@ -40,9 +40,14 @@ namespace Datadog.Trace.OpenTracing.Tests
         [Fact]
         public void BuildSpan_OneChild_ChildParentProperlySet()
         {
+            const string baggageKey = "BaggageKey";
+            const string baggageValue = "BaggageValue";
             IScope root = _tracer
                          .BuildSpan("Root")
                          .StartActive(finishSpanOnDispose: true);
+
+            root.Span.SetBaggageItem(baggageKey, baggageValue);
+
             IScope child = _tracer
                           .BuildSpan("Child")
                           .StartActive(finishSpanOnDispose: true);
@@ -52,14 +57,20 @@ namespace Datadog.Trace.OpenTracing.Tests
 
             Assert.Equal(rootDatadogSpan.Context.TraceContext, (ITraceContext)childDatadogSpan.Context.TraceContext);
             Assert.Equal(rootDatadogSpan.Context.SpanId, childDatadogSpan.Context.ParentId);
+            Assert.Equal(baggageValue, child.Span.GetBaggageItem(baggageKey));
         }
 
         [Fact]
         public void BuildSpan_2ChildrenOfRoot_ChildrenParentProperlySet()
         {
+            const string baggageKey = "BaggageKey";
+            const string baggageValue = "BaggageValue";
+
             IScope root = _tracer
                          .BuildSpan("Root")
                          .StartActive(finishSpanOnDispose: true);
+
+            root.Span.SetBaggageItem(baggageKey, baggageValue);
 
             IScope child1 = _tracer
                            .BuildSpan("Child1")
@@ -77,19 +88,34 @@ namespace Datadog.Trace.OpenTracing.Tests
 
             Assert.Same(rootDatadogSpan.Context.TraceContext, child1DatadogSpan.Context.TraceContext);
             Assert.Equal(rootDatadogSpan.Context.SpanId, child1DatadogSpan.Context.ParentId);
+            Assert.Equal(baggageValue, child1.Span.GetBaggageItem(baggageKey));
+
             Assert.Same(rootDatadogSpan.Context.TraceContext, child2DatadogSpan.Context.TraceContext);
             Assert.Equal(rootDatadogSpan.Context.SpanId, child2DatadogSpan.Context.ParentId);
+            Assert.Equal(baggageValue, child2.Span.GetBaggageItem(baggageKey));
         }
 
         [Fact]
         public void BuildSpan_2LevelChildren_ChildrenParentProperlySet()
         {
+            const string baggageKeyRoot = "BaggageKeyRoot";
+            const string baggageValueRoot = "BaggageValueRoot";
+
+            const string baggageKeyChild1 = "BaggageKeyChild1";
+            const string baggageValueChild1 = "BaggageValueChild1";
+
             IScope root = _tracer
                          .BuildSpan("Root")
                          .StartActive(finishSpanOnDispose: true);
+
+            root.Span.SetBaggageItem(baggageKeyRoot, baggageValueRoot);
+
             IScope child1 = _tracer
                            .BuildSpan("Child1")
                            .StartActive(finishSpanOnDispose: true);
+
+            child1.Span.SetBaggageItem(baggageKeyChild1, baggageValueChild1);
+
             IScope child2 = _tracer
                            .BuildSpan("Child2")
                            .StartActive(finishSpanOnDispose: true);
@@ -100,8 +126,13 @@ namespace Datadog.Trace.OpenTracing.Tests
 
             Assert.Same(rootDatadogSpan.Context.TraceContext, child1DatadogSpan.Context.TraceContext);
             Assert.Equal(rootDatadogSpan.Context.SpanId, child1DatadogSpan.Context.ParentId);
+            Assert.Equal(baggageValueRoot, child1.Span.GetBaggageItem(baggageKeyRoot));
+            Assert.Equal(baggageValueChild1, child1.Span.GetBaggageItem(baggageKeyChild1));
+
             Assert.Same(rootDatadogSpan.Context.TraceContext, child2DatadogSpan.Context.TraceContext);
             Assert.Equal(child1DatadogSpan.Context.SpanId, child2DatadogSpan.Context.ParentId);
+            Assert.Equal(baggageValueRoot, child2.Span.GetBaggageItem(baggageKeyRoot));
+            Assert.Equal(baggageValueChild1, child2.Span.GetBaggageItem(baggageKeyChild1));
         }
 
         [Fact]
@@ -109,9 +140,14 @@ namespace Datadog.Trace.OpenTracing.Tests
         {
             var tcs = new TaskCompletionSource<bool>();
 
+            const string baggageKey = "BaggageKey";
+            const string baggageValue = "BaggageValue";
+
             IScope root = _tracer
                          .BuildSpan("Root")
                          .StartActive(finishSpanOnDispose: true);
+
+            root.Span.SetBaggageItem(baggageKey, baggageValue);
 
             Func<OpenTracingTracer, Task<OpenTracingSpan>> createSpanAsync = async (t) =>
             {
@@ -133,19 +169,25 @@ namespace Datadog.Trace.OpenTracing.Tests
                 var span = await task;
                 Assert.Equal(rootDatadogSpan.Context.TraceContext, (ITraceContext)span.DDSpan.Context.TraceContext);
                 Assert.Equal(rootDatadogSpan.Context.SpanId, span.DDSpan.Context.ParentId);
+                Assert.Equal(baggageValue, span.GetBaggageItem(baggageKey));
             }
         }
 
         [Fact]
         public void Inject_HttpHeadersFormat_CorrectHeaders()
         {
+            const string baggageKey = "BaggageKey";
+            const string baggageValue = "BaggageValue";
+
             var span = (OpenTracingSpan)_tracer.BuildSpan("Span").Start();
+            span.SetBaggageItem(baggageKey, baggageValue);
             var headers = new MockTextMap();
 
             _tracer.Inject(span.Context, BuiltinFormats.HttpHeaders, headers);
 
             Assert.Equal(span.DDSpan.Context.TraceId.ToString(), headers.Get(HttpHeaderNames.TraceId));
             Assert.Equal(span.DDSpan.Context.SpanId.ToString(), headers.Get(HttpHeaderNames.ParentId));
+            Assert.Equal(span.GetBaggageItem(baggageKey), headers.Get($"{OpenTracingHttpHeaderNames.BaggagePrefix}{baggageKey}"));
         }
 
         [Fact]
@@ -153,14 +195,19 @@ namespace Datadog.Trace.OpenTracing.Tests
         {
             const ulong parentId = 10;
             const ulong traceId = 42;
+            const string baggageKey = "BaggageKey";
+            const string baggageValue = "BaggageValue";
+
             var headers = new MockTextMap();
             headers.Set(HttpHeaderNames.ParentId, parentId.ToString());
             headers.Set(HttpHeaderNames.TraceId, traceId.ToString());
+            headers.Set($"{OpenTracingHttpHeaderNames.BaggagePrefix}{baggageKey}", baggageValue);
 
             var otSpanContext = (OpenTracingSpanContext)_tracer.Extract(BuiltinFormats.HttpHeaders, headers);
 
             Assert.Equal(parentId, otSpanContext.Context.SpanId);
             Assert.Equal(traceId, otSpanContext.Context.TraceId);
+            Assert.Equal(baggageValue, otSpanContext.GetBaggageItem(baggageKey));
         }
 
         [Fact]
