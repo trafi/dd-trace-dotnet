@@ -17,6 +17,8 @@ namespace Datadog.Trace.Agent
 
         public AgentWriter(IApi api)
         {
+            Tracer.Log("INVESTIGATE: AgentWriter starting..", null, new object[] { });
+
             _api = api;
             _flushTask = Task.Run(FlushTracesTaskLoopAsync);
         }
@@ -26,6 +28,7 @@ namespace Datadog.Trace.Agent
             var success = _tracesBuffer.Push(trace);
             if (!success)
             {
+                Tracer.Log("INVESTIGATE: Trace buffer is full, dropping it.", null, new object[] { });
                 _log.Debug("Trace buffer is full, dropping it.");
             }
         }
@@ -42,6 +45,7 @@ namespace Datadog.Trace.Agent
 
             if (!_flushTask.IsCompleted)
             {
+                Tracer.Log("INVESTIGATE: Could not flush all traces before process exit", null, new object[] { });
                 _log.Warn("Could not flush all traces before process exit");
             }
         }
@@ -76,6 +80,7 @@ namespace Datadog.Trace.Agent
                 }
                 catch (Exception ex)
                 {
+                    Tracer.Log("INVESTIGATE: An unhandled error occurred during the flushing task", ex, new object[] { });
                     _log.ErrorException("An unhandled error occurred during the flushing task", ex);
                 }
             }

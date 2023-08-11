@@ -16,7 +16,7 @@ namespace Datadog.Trace
     {
         private const string UnknownServiceName = "UnknownService";
 
-        private static readonly ILog Log = LogProvider.For<Tracer>();
+        private static readonly ILog Log2 = LogProvider.For<Tracer>();
 
         private readonly IScopeManager _scopeManager;
         private readonly IAgentWriter _agentWriter;
@@ -51,6 +51,7 @@ namespace Datadog.Trace
         internal Tracer(TracerSettings settings, IAgentWriter agentWriter, ISampler sampler, IScopeManager scopeManager)
         {
             // fall back to default implementations of each dependency if not provided
+            Log("INVESTIGATE: Tracer.ctor {@settings}, {agentWriter}, {@scopeManager}", null, new object[] { settings, agentWriter, scopeManager });
             Settings = settings ?? TracerSettings.FromDefaultSources();
             _agentWriter = agentWriter ?? new AgentWriter(new Api(Settings.AgentUri));
             _scopeManager = scopeManager ?? new AsyncLocalScopeManager();
@@ -61,11 +62,18 @@ namespace Datadog.Trace
                                  GetApplicationName() ??
                                  UnknownServiceName;
 
+            Log("INVESTIGATE: Tracer.ctor {DefaultServiceName}", null, new object[] { DefaultServiceName });
+
             // Register callbacks to make sure we flush the traces before exiting
             AppDomain.CurrentDomain.ProcessExit += CurrentDomain_ProcessExit;
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
             Console.CancelKeyPress += Console_CancelKeyPress;
         }
+
+        /// <summary>
+        /// Gets or sets the global log action
+        /// </summary>
+        public static Action<string, Exception, object[]> Log { get; set; } = (message, ex, args) => { };
 
         /// <summary>
         /// Gets or sets the global tracer object
@@ -257,7 +265,8 @@ namespace Datadog.Trace
             }
             catch (Exception ex)
             {
-                Log.ErrorException("Error creating default service name.", ex);
+                Log("INVESTIGATE: Error creating default service name", ex, new object[] { });
+                Log2.ErrorException("Error creating default service name.", ex);
                 return null;
             }
         }

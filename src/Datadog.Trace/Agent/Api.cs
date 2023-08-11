@@ -4,7 +4,6 @@ using System.Linq;
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
-using Datadog.Trace.Logging;
 using MsgPack.Serialization;
 using Newtonsoft.Json;
 
@@ -14,7 +13,6 @@ namespace Datadog.Trace.Agent
     {
         private const string TracesPath = "/v0.4/traces";
 
-        private static readonly ILog _log = LogProvider.For<Api>();
         private static readonly SerializationContext _serializationContext = new SerializationContext();
         private static readonly SpanMessagePackSerializer Serializer = new SpanMessagePackSerializer(_serializationContext);
 
@@ -62,6 +60,8 @@ namespace Datadog.Trace.Agent
 
                 try
                 {
+                    Tracer.Log("INVESTIGATE: SendTracesAsync {@_tracesEndpoint} {FullTraces}", null, new object[] { _tracesEndpoint, JsonConvert.SerializeObject(traces) });
+
                     // re-create content on every retry because some versions of HttpClient always dispose of it, so we can't reuse.
                     using (var content = new MsgPackContent<IList<List<Span>>>(traces, _serializationContext))
                     {
@@ -75,7 +75,7 @@ namespace Datadog.Trace.Agent
                     {
                         var toLog = traces.Take(count: 10).Select(t => t?.Take(count: 10).ToArray()).ToArray();
                         // stop retrying
-                        _log.ErrorException("An error occurred while sending traces to the agent at {Endpoint}, {TraceSample}", ex, _tracesEndpoint, JsonConvert.SerializeObject(toLog));
+                        Tracer.Log("INVESTIGATE: An error occurred while sending traces to the agent at {Endpoint}, {TraceSample}", ex, new object[] { _tracesEndpoint, JsonConvert.SerializeObject(toLog) });
                         return;
                     }
 
@@ -94,12 +94,14 @@ namespace Datadog.Trace.Agent
                         var responseContent = await responseMessage.Content.ReadAsStringAsync().ConfigureAwait(false);
                         var response = JsonConvert.DeserializeObject<ApiResponse>(responseContent);
 
+                        Tracer.Log("INVESTIGATE: SendTracesAsync:Response {response}", null, new object[] { responseContent });
+
                         Tracer.Instance.Sampler.SetSampleRates(response?.RateByService);
                     }
                 }
                 catch (Exception ex)
                 {
-                    _log.ErrorException("Traces sent successfully to the Agent at {Endpoint}, but an error occurred deserializing the response.", ex, _tracesEndpoint);
+                    Tracer.Log("INVESTIGATE: Traces sent successfully to the Agent at {@Endpoint}, but an error occurred deserializing the response.", ex, new object[] { _tracesEndpoint });
                 }
 
                 return;
